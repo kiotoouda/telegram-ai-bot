@@ -16,10 +16,14 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 # Free AI API (no key needed)
 def get_ai_response(prompt):
     try:
-        res = requests.get(f"https://api.affiliateplus.xyz/api/chatbot?message={prompt}&botname=AI%20Friend&ownername=Kioto")
-        return res.json().get("message", "Hmm, I didn't get that. Can you repeat?")
-    except Exception as e:
+        url = "https://api.monkedev.com/fun/chat"
+        params = {"msg": prompt, "uid": "kioto_ai"}
+        res = requests.get(url, params=params)
+        data = res.json()
+        return data.get("response", "Hmm... I didn’t get that, try again?")
+    except Exception:
         return "Sorry, my brain lagged out 💀"
+
 
 # Start command
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
