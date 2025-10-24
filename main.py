@@ -31,8 +31,10 @@ bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
 @app.route(f"/{BOT_TOKEN}", methods=["POST"])
 def webhook():
     update = Update.de_json(request.get_json(force=True), bot_app.bot)
-    loop = asyncio.get_running_loop()
-    asyncio.run_coroutine_threadsafe(bot_app.update_queue.put(update), loop)
+
+    # Use asyncio.run() for each request (creates temporary loop)
+    asyncio.run(bot_app.update_queue.put(update))
+
     return "OK", 200
 
 # -------------------------------
@@ -49,4 +51,5 @@ if __name__ == "__main__":
     # Start Flask server
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
+
 
