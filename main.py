@@ -1,62 +1,39 @@
 import os
-import logging
+import asyncio
 from flask import Flask, request
 from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
-import requests
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
-# Logging setup
-logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
-
-# Environment variables
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-APP_URL = os.getenv("APP_URL")  # e.g., https://your-bot-name.onrender.com
+APP_URL = os.getenv("APP_URL")  # Set this in Render: https://your-render-url.com
 
 app = Flask(__name__)
 
-# --- AI REPLY FUNCTION ---
-def get_ai_response(prompt):
-    try:
-        url = "https://api.monkedev.com/fun/chat"
-        params = {"msg": prompt, "uid": "kioto_ai"}
-        res = requests.get(url, params=params)
-        data = res.json()
-        return data.get("response", "Hmm... I didn’t get that, try again?")
-    except Exception:
-        return "Sorry, my brain lagged out 💀"
+# Create bot application
+app.bot_app = Application.builder().token(BOT_TOKEN).build()
 
-# --- TELEGRAM HANDLERS ---
+# Handlers
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Hey! I’m your AI friend 🤖. Tell me anything — I’ll listen and talk with you!")
+    await update.message.reply_text("🤖 Bot is alive and ready!")
 
-async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_message = update.message.text
-    ai_reply = get_ai_response(user_message)
-    await update.message.reply_text(ai_reply)
+async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(update.message.text)
 
-# --- BUILD THE APP ---
-application = Application.builder().token(BOT_TOKEN).build()
-application.add_handler(CommandHandler("start", start))
-application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, chat))
+app.bot_app.add_handler(CommandHandler("start", start))
+app.bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
 
-@app.route("/")
-def home():
-    return "Bot is alive ✅"
-
-@app.route(f"/{BOT_TOKEN}", methods=["POST"])
+# Webhook route
+@app.route(f'/{BOT_TOKEN}', methods=['POST'])
 def webhook():
-    update = Update.de_json(request.get_json(force=True), application.bot)
-    application.update_queue.put_nowait(update)
-    return "ok"
-
-# --- RUN WEBHOOK ---
-async def set_webhook():
-    webhook_url = f"{APP_URL}/{BOT_TOKEN}"
-    await application.bot.set_webhook(url=webhook_url)
-    print(f"Webhook set to {webhook_url}")
+    update = Update.de_json(request.get_json(force=True), app.bot_app.bot)
+    asyncio.get_event_loop().create_task(app.bot_app.update_queue.put(update))
+    return "OK", 200
 
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(set_webhook())
+    # Set webhook on startup
+    async def set_webhook():
+        await app.bot_app.bot.set_webhook(f"{APP_URL}/{BOT_TOKEN}")
+    asyncio.get_event_loop().run_until_complete(set_webhook())
+    
+    # Run Flask
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
-
