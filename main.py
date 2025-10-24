@@ -6,19 +6,15 @@ from telegram.ext import Application, CommandHandler, MessageHandler, ContextTyp
 import requests
 
 # Logging setup
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
+logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 
 # Environment variables
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-APP_URL = os.getenv("APP_URL")  # Example: https://telegram-ai-bot-xxxxx.onrender.com
+APP_URL = os.getenv("APP_URL")  # e.g., https://your-bot-name.onrender.com
 
-# Flask server for webhook
-server = Flask(__name__)
+app = Flask(__name__)
 
-# AI function
+# --- AI REPLY FUNCTION ---
 def get_ai_response(prompt):
     try:
         url = "https://api.monkedev.com/fun/chat"
@@ -29,42 +25,38 @@ def get_ai_response(prompt):
     except Exception:
         return "Sorry, my brain lagged out 💀"
 
-
-# Handlers
+# --- TELEGRAM HANDLERS ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Hey! I’m alive on Render via webhook ⚡️")
+    await update.message.reply_text("Hey! I’m your AI friend 🤖. Tell me anything — I’ll listen and talk with you!")
 
 async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_message = update.message.text
     ai_reply = get_ai_response(user_message)
     await update.message.reply_text(ai_reply)
 
-
-# Telegram app setup
+# --- BUILD THE APP ---
 application = Application.builder().token(BOT_TOKEN).build()
 application.add_handler(CommandHandler("start", start))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, chat))
 
+@app.route("/")
+def home():
+    return "Bot is alive ✅"
 
-# Webhook endpoint
-@server.route(f'/{BOT_TOKEN}', methods=['POST'])
+@app.route(f"/{BOT_TOKEN}", methods=["POST"])
 def webhook():
     update = Update.de_json(request.get_json(force=True), application.bot)
     application.update_queue.put_nowait(update)
-    return "ok", 200
+    return "ok"
 
-
-@server.route('/')
-def index():
-    return "Bot is running on webhook mode.", 200
-
+# --- RUN WEBHOOK ---
+async def set_webhook():
+    webhook_url = f"{APP_URL}/{BOT_TOKEN}"
+    await application.bot.set_webhook(url=webhook_url)
+    print(f"Webhook set to {webhook_url}")
 
 if __name__ == "__main__":
-    port = int(os.environ.get('PORT', 5000))
-    application.run_webhook(
-        listen="0.0.0.0",
-        port=port,
-        url_path=BOT_TOKEN,
-        webhook_url=f"{APP_URL}/{BOT_TOKEN}"
-    )
-    server.run(host="0.0.0.0", port=port)
+    import asyncio
+    asyncio.run(set_webhook())
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+
